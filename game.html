@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nokia-Style Snake</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #d3d3d3; /* Nokia grey */
+            display: flex;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+        }
+        .game-container {
+            width: 300px;
+            height: 550px; /* Increased height to accommodate larger keypad */
+            background: #8c8c8c;
+            border: 5px solid #000;
+            position: relative;
+            overflow: hidden;
+        }
+        .score-board {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #000;
+            font-size: 16px;
+            text-align: center;
+            width: 280px;
+            background: #000;
+            color: #9acd32;
+            padding: 5px;
+            z-index: 10;
+        }
+        .screen {
+            width: 280px;
+            height: 360px;
+            background: #9acd32; /* Nokia green screen */
+            position: absolute;
+            top: 50px;
+            left: 10px;
+        }
+        .virtual-keypad {
+            position: absolute;
+            bottom: 10px; /* Kept far outside with increased container height */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px; /* Larger keypad width */
+            height: 120px; /* Larger keypad height */
+            background: #555;
+            border: 2px solid #000;
+            z-index: 15;
+            display: grid;
+            grid-template-areas: 
+                ". up ."
+                "left select right"
+                ". down .";
+            gap: 6px; /* Increased gap for larger buttons */
+        }
+        .key {
+            background: #777;
+            border: 2px solid #000;
+            color: #fff;
+            font-size: 24px; /* Larger font for buttons */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .key:hover {
+            background: #999;
+        }
+        .key.active {
+            background: #444;
+        }
+        .up { grid-area: up; }
+        .left { grid-area: left; }
+        .select { grid-area: select; }
+        .right { grid-area: right; }
+        .down { grid-area: down; }
+        #result {
+            position: absolute;
+            top: 60px;
+            left: 5px;
+            width: 270px;
+            text-align: center;
+            font-size: 14px;
+            color: #000;
+            z-index: 10;
+        }
+        .start-screen {
+            position: absolute;
+            top: 120px;
+            left: 10px;
+            text-align: center;
+            background: #000;
+            color: #9acd32;
+            padding: 15px;
+            font-size: 14px;
+            width: 250px;
+            z-index: 10;
+        }
+        .snake-segment {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #000;
+            z-index: 5;
+        }
+        .food {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #ff0000;
+            z-index: 4;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="score-board" id="scoreBoard" style="display: none;">
+            SCORE: <span id="score">0</span>
+        </div>
+        <div class="screen">
+            <div class="start-screen" id="startScreen">
+                SNAKE<br><br>
+                PRESS SELECT TO START
+            </div>
+            <div id="result"></div>
+        </div>
+        <div class="virtual-keypad" id="virtualKeypad">
+            <div class="key up" onclick="keyPress('up')">▲</div>
+            <div class="key left" onclick="keyPress('left')">◄</div>
+            <div class="key select" onclick="keyPress('select')">OK</div>
+            <div class="key right" onclick="keyPress('right')">►</div>
+            <div class="key down" onclick="keyPress('down')">▼</div>
+        </div>
+    </div>
+
+    <script>
+        const gridSize = 12;
+        const screenWidth = 280;
+        const screenHeight = 360;
+        let snake = [{ x: 120, y: 180 }];
+        let direction = 'right';
+        let newDirection = 'right';
+        let food = { x: 0, y: 0 };
+        let score = 0;
+        let gameActive = false;
+        let gameInterval;
+
+        function startGame() {
+            snake = [{ x: 120, y: 180 }];
+            direction = 'right';
+            newDirection = 'right';
+            score = 0;
+            gameActive = true;
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('scoreBoard').style.display = 'block';
+            document.getElementById('result').textContent = '';
+            spawnFood();
+            updateDisplay();
+            clearInterval(gameInterval);
+            gameInterval = setInterval(updateGame, 150);
+        }
+
+        function updateDisplay() {
+            document.getElementById('score').textContent = score;
+            const screen = document.querySelector('.screen');
+            
+            document.querySelectorAll('.snake-segment').forEach(segment => segment.remove());
+            
+            snake.forEach((segment, index) => {
+                const div = document.createElement('div');
+                div.className = 'snake-segment';
+                div.style.left = `${segment.x}px`;
+                div.style.top = `${segment.y}px`;
+                screen.appendChild(div);
+            });
+            
+            const foodDiv = document.querySelector('.food') || document.createElement('div');
+            foodDiv.className = 'food';
+            foodDiv.style.left = `${food.x}px`;
+            foodDiv.style.top = `${food.y}px`;
+            if (!foodDiv.parentElement) screen.appendChild(foodDiv);
+        }
+
+        function spawnFood() {
+            food.x = Math.floor(Math.random() * (screenWidth / gridSize)) * gridSize;
+            food.y = Math.floor(Math.random() * (screenHeight / gridSize)) * gridSize;
+            if (snake.some(segment => segment.x === food.x && segment.y === food.y)) {
+                spawnFood();
+            }
+        }
+
+        function keyPress(key) {
+            if (key === 'select') {
+                if (!gameActive) {
+                    startGame();
+                }
+                return;
+            }
+            if (!gameActive) return;
+
+            if (key === 'up' && direction !== 'down') newDirection = 'up';
+            if (key === 'down' && direction !== 'up') newDirection = 'down';
+            if (key === 'left' && direction !== 'right') newDirection = 'left';
+            if (key === 'right' && direction !== 'left') newDirection = 'right';
+
+            const buttons = document.querySelectorAll('.key');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.key.${key}`).classList.add('active');
+            setTimeout(() => buttons.forEach(btn => btn.classList.remove('active')), 100);
+        }
+
+        function updateGame() {
+            if (!gameActive) return;
+
+            direction = newDirection;
+            const head = { ...snake[0] };
+
+            if (direction === 'up') head.y -= gridSize;
+            if (direction === 'down') head.y += gridSize;
+            if (direction === 'left') head.x -= gridSize;
+            if (direction === 'right') head.x += gridSize;
+
+            if (head.x < 0 || head.x >= screenWidth || head.y < 0 || head.y >= screenHeight) {
+                endGame();
+                return;
+            }
+
+            if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+                endGame();
+                return;
+            }
+
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                spawnFood();
+            } else {
+                snake.pop();
+            }
+
+            updateDisplay();
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameInterval);
+            document.getElementById('result').textContent = `GAME OVER!\nSCORE: ${score}`;
+            document.getElementById('startScreen').style.display = 'block';
+            document.getElementById('startScreen').innerHTML = 'SNAKE<br><br>PRESS SELECT TO START';
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp': keyPress('up'); break;
+                case 'ArrowDown': keyPress('down'); break;
+                case 'ArrowLeft': keyPress('left'); break;
+                case 'ArrowRight': keyPress('right'); break;
+                case 'Enter': keyPress('select'); break;
+            }
+        });
+    </script>
+</body>
+</html>
